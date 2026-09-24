@@ -1,0 +1,489 @@
+/* All calculator dimensions are in cqw (1% of the calculator's width), so the
+   whole device scales as one piece. One grid row (--row) is one key pitch. */
+
+:root {
+  --page-bg: #1e2124;
+
+  --case-hi: #62666b;
+  --case: #4f5358;
+  --case-lo: #3a3d41;
+  --bezel: #0e0f11;
+  --panel: #43474c;
+
+  --key-dark-hi: #303134;
+  --key-dark-lo: #141517;
+  --key-dark-text: #f2f2f2;
+  --key-light-hi: #d3d6d8;
+  --key-light-lo: #a4a7aa;
+  --key-light-text: #151515;
+  --key-blue-hi: #5d86c9;
+  --key-blue-lo: #3b61a0;
+  --key-fn-hi: #52659c;
+  --key-fn-lo: #34467a;
+
+  --legend-second: #f2b53c;
+  --legend-diamond: #3ec2a9;
+
+  --lcd-bg-hi: #bccab0;
+  --lcd-bg-lo: #a8b89c;
+  --lcd-ink: #1f2c4c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% 35%, #34383d, var(--page-bg) 70%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 16px;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
+#app {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.calc-wrap {
+  width: min(1150px, 100%);
+  container-type: inline-size;
+}
+
+.calc {
+  --row: 4.8cqw;
+  display: grid;
+  grid-template-columns: 1fr 27cqw;
+  grid-template-rows: repeat(10, var(--row));
+  column-gap: 2cqw;
+  padding: 2.4cqw 2.6cqw 3.4cqw 3.4cqw;
+  border-radius: 3.2cqw 3.2cqw 4cqw 4cqw;
+  background: linear-gradient(180deg, var(--case-hi), var(--case) 18%, var(--case-lo));
+  box-shadow:
+    inset 0 0.2cqw 0 rgba(255, 255, 255, 0.18),
+    inset 0 -0.6cqw 1cqw rgba(0, 0, 0, 0.45),
+    inset 0.9cqw 0 0 #2d3034,
+    inset -0.9cqw 0 0 #2d3034,
+    0 2cqw 4cqw rgba(0, 0, 0, 0.6);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* ---------- top-left: glossy black bezel with F-keys and screen ---------- */
+
+.bezel {
+  grid-column: 1;
+  grid-row: 1 / span 6;
+  margin-bottom: 1.3cqw;
+  display: grid;
+  grid-template-columns: 12.5cqw 1fr;
+  gap: 1.2cqw;
+  padding: 0.8cqw 1.6cqw 1.3cqw 0.8cqw;
+  border-radius: 1.8cqw;
+  background: linear-gradient(160deg, #26282c, var(--bezel) 45%);
+  box-shadow:
+    inset 0 0.15cqw 0 rgba(255, 255, 255, 0.12),
+    0 0.2cqw 0.4cqw rgba(0, 0, 0, 0.5);
+}
+
+.fkeys {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+}
+
+/* The right column of F-keys sits a little higher than the left, as on the real unit. */
+.fkeys > .cell {
+  padding-bottom: 0.9cqw;
+}
+.fkeys > .cell--raised {
+  transform: translateY(-0.6cqw);
+}
+
+.speaker {
+  align-self: center;
+  justify-self: center;
+  width: 5.4cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #4a4d51, #2a2c2f 60%, #1c1d20);
+  box-shadow: inset 0 -0.3cqw 0.5cqw rgba(0, 0, 0, 0.6), 0 0.1cqw 0 rgba(255, 255, 255, 0.1);
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.4cqw 1.2cqw 0.6cqw 3.2cqw;
+  color: #e9e9e9;
+}
+
+.brand-ti {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-variant: small-caps;
+  font-size: 1.55cqw;
+  letter-spacing: 0.04em;
+}
+
+.brand-model {
+  font-weight: 700;
+  font-size: 1.6cqw;
+  letter-spacing: 0.05em;
+}
+
+.lcd-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 0.9cqw;
+  border-radius: 0.8cqw;
+  background: #050506;
+  box-shadow: inset 0 0.3cqw 0.6cqw rgba(0, 0, 0, 0.9), 0 0 0 0.15cqw #2a2c30;
+}
+
+/* ---------- LCD ---------- */
+
+.lcd {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.35cqw 0.5cqw 0.25cqw;
+  border-radius: 0.3cqw;
+  background: linear-gradient(170deg, var(--lcd-bg-hi), var(--lcd-bg-lo));
+  box-shadow: inset 0 0 1.2cqw rgba(0, 0, 0, 0.3);
+  color: var(--lcd-ink);
+  font-family: 'VT323', ui-monospace, Menlo, monospace;
+  font-size: 1.85cqw;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lcd-toolbar {
+  display: flex;
+  gap: 0.15cqw;
+  border-bottom: 0.15cqw solid var(--lcd-ink);
+}
+
+.lcd-tab {
+  flex: 1 1 auto;
+  padding: 0 0.3cqw 0.1cqw;
+  border: 0.12cqw solid var(--lcd-ink);
+  border-bottom: 0;
+  text-align: center;
+}
+
+.lcd-tab small {
+  display: block;
+  font-size: 0.95cqw;
+}
+
+.lcd-tab--active {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-hi);
+}
+
+.lcd-history {
+  flex: 1;
+}
+
+.lcd-entry {
+  height: 2.1cqw;
+  display: flex;
+  align-items: center;
+  padding-left: 0.4cqw;
+  border-top: 0.15cqw solid var(--lcd-ink);
+  border-bottom: 0.15cqw solid var(--lcd-ink);
+}
+
+.lcd-cursor {
+  width: 0.2cqw;
+  height: 1.5cqw;
+  background: var(--lcd-ink);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.lcd-status {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25cqw 0.3cqw 0;
+  font-size: 1.35cqw;
+}
+
+.lcd-mod:not(:empty) {
+  margin-right: 0.8cqw;
+  padding: 0 0.2cqw;
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-hi);
+}
+
+/* ---------- key areas ---------- */
+
+.control {
+  grid-column: 2;
+  grid-row: 1 / span 10;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(10, var(--row));
+  position: relative;
+}
+
+/* Darker raised panel behind the top control keys and cursor pad. */
+.control-panel {
+  grid-column: 1 / span 4;
+  grid-row: 1 / span 4;
+  margin: -1.2cqw -1cqw 0.2cqw -0.8cqw;
+  border-radius: 1.6cqw;
+  background: linear-gradient(180deg, #3a3e43, var(--panel));
+  box-shadow: inset 0 0.15cqw 0 rgba(255, 255, 255, 0.1), 0 0.2cqw 0.4cqw rgba(0, 0, 0, 0.4);
+}
+
+.qwerty {
+  grid-column: 1;
+  grid-row: 7 / span 4;
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  grid-template-rows: repeat(4, var(--row));
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0 0.55cqw 0.45cqw;
+  position: relative;
+}
+
+.qwerty .cell {
+  padding-inline: 0.75cqw;
+}
+
+.cell--tall .key {
+  flex: 1;
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 0.8cqw;
+  height: 1.45cqw;
+  font-size: 1.05cqw;
+  font-weight: 700;
+  line-height: 1.45cqw;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.legend-second {
+  color: var(--legend-second);
+}
+
+.legend-diamond {
+  color: var(--legend-diamond);
+}
+
+/* ---------- keys ---------- */
+
+.key {
+  height: 3.05cqw;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.65cqw;
+  font: 700 1.3cqw/1 'Helvetica Neue', Arial, sans-serif;
+  cursor: pointer;
+  box-shadow:
+    0 0.35cqw 0 rgba(0, 0, 0, 0.6),
+    0 0.45cqw 0.5cqw rgba(0, 0, 0, 0.35),
+    inset 0 0.12cqw 0 rgba(255, 255, 255, 0.18);
+  transition:
+    transform 50ms,
+    box-shadow 50ms;
+}
+
+.key.pressed {
+  transform: translateY(0.28cqw);
+  box-shadow:
+    0 0.07cqw 0 rgba(0, 0, 0, 0.6),
+    inset 0 0.12cqw 0 rgba(255, 255, 255, 0.1);
+  filter: brightness(0.88);
+}
+
+.key--dark,
+.key--second,
+.key--diamond {
+  background: linear-gradient(180deg, var(--key-dark-hi), var(--key-dark-lo));
+  color: var(--key-dark-text);
+}
+
+.qwerty .key--dark {
+  font-size: 1.45cqw;
+}
+
+.key--light {
+  background: linear-gradient(180deg, var(--key-light-hi), var(--key-light-lo));
+  color: var(--key-light-text);
+  font-size: 1.55cqw;
+}
+
+.key--blue {
+  background: linear-gradient(180deg, var(--key-blue-hi), var(--key-blue-lo));
+  color: #fff;
+}
+
+.key--fn {
+  background: linear-gradient(180deg, var(--key-fn-hi), var(--key-fn-lo));
+  color: #e4eaff;
+  font-size: 1.35cqw;
+  border-radius: 0.5cqw 0.9cqw 0.5cqw 0.9cqw;
+}
+
+.key--second {
+  color: var(--legend-second);
+  box-shadow:
+    inset 0 0 0 0.16cqw var(--legend-second),
+    0 0.35cqw 0 rgba(0, 0, 0, 0.6);
+}
+
+.key--diamond {
+  color: var(--legend-diamond);
+  font-size: 1.7cqw;
+  box-shadow:
+    inset 0 0 0 0.16cqw var(--legend-diamond),
+    0 0.35cqw 0 rgba(0, 0, 0, 0.6);
+}
+
+.key--second.latched {
+  background: var(--legend-second);
+  color: var(--key-dark-lo);
+}
+
+.key--diamond.latched {
+  background: var(--legend-diamond);
+  color: var(--key-dark-lo);
+}
+
+.key--dark.latched {
+  outline: 0.18cqw solid #fff;
+}
+
+/* ---------- cursor pad ---------- */
+
+.cell--pad {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  z-index: 1;
+}
+
+.pad {
+  position: relative;
+  width: 13.2cqw;
+  aspect-ratio: 1;
+  margin-top: -0.6cqw;
+  border-radius: 50%;
+  background: radial-gradient(circle, #24272b 62%, #2f3337 70%, #1b1d20);
+  box-shadow: inset 0 0.2cqw 0.4cqw rgba(0, 0, 0, 0.7);
+}
+
+.pad-disc {
+  position: absolute;
+  inset: 0.9cqw;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 45% 35%, var(--key-blue-hi), var(--key-blue-lo) 75%);
+  box-shadow:
+    0 0.35cqw 0 rgba(0, 0, 0, 0.55),
+    inset 0 0.15cqw 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Raised cross moulded into the disc. */
+.pad-disc::before {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background:
+    linear-gradient(90deg, transparent 34%, rgba(255, 255, 255, 0.14) 34% 66%, transparent 66%),
+    linear-gradient(180deg, transparent 34%, rgba(255, 255, 255, 0.14) 34% 66%, transparent 66%);
+  pointer-events: none;
+}
+
+.pad-btn {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pad-btn--up { clip-path: polygon(50% 50%, 0 0, 100% 0); }
+.pad-btn--right { clip-path: polygon(50% 50%, 100% 0, 100% 100%); }
+.pad-btn--down { clip-path: polygon(50% 50%, 100% 100%, 0 100%); }
+.pad-btn--left { clip-path: polygon(50% 50%, 0 100%, 0 0); }
+
+.pad-btn.pressed {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* Small arrow printed near the outer edge of each direction. */
+.pad-btn::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0.55cqw solid transparent;
+}
+
+.pad-btn--up::after {
+  left: 50%;
+  top: 8%;
+  translate: -50% 0;
+  border-bottom-color: rgba(10, 20, 45, 0.7);
+  border-top-width: 0;
+}
+
+.pad-btn--down::after {
+  left: 50%;
+  bottom: 8%;
+  translate: -50% 0;
+  border-top-color: rgba(10, 20, 45, 0.7);
+  border-bottom-width: 0;
+}
+
+.pad-btn--left::after {
+  top: 50%;
+  left: 8%;
+  translate: 0 -50%;
+  border-right-color: rgba(10, 20, 45, 0.7);
+  border-left-width: 0;
+}
+
+.pad-btn--right::after {
+  top: 50%;
+  right: 8%;
+  translate: 0 -50%;
+  border-left-color: rgba(10, 20, 45, 0.7);
+  border-right-width: 0;
+}
