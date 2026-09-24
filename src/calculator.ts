@@ -167,5 +167,5 @@ export function mountCalculator(root: HTMLElement) {
     if (id) setPressed(id, false);
   });
 
-  return calc;
+  return { el: calc, lcd };
 }

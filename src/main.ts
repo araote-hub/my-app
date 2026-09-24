@@ -1,7 +1,12 @@
 import './style.css';
 import { mountCalculator } from './calculator';
+import { Home } from './home';
 
-const calc = mountCalculator(document.querySelector<HTMLElement>('#app')!);
+const { el, lcd } = mountCalculator(document.querySelector<HTMLElement>('#app')!);
+const home = new Home();
 
-// No calculation engine yet: log key events so the UI can be checked.
-calc.addEventListener('calckey', (e) => console.log('calckey', e.detail));
+lcd.render(home.state);
+el.addEventListener('calckey', (e) => {
+  home.press(e.detail.id, e.detail.modifier);
+  lcd.render(home.state);
+});
