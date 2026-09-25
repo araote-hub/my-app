@@ -78,7 +78,8 @@ export function mountCalculator(root: HTMLElement) {
 
   const screen = el('div', 'screen');
   const brand = el('div', 'brand');
-  brand.innerHTML = '<span class="brand-ti">Texas Instruments</span><span class="brand-model">TI-92</span>';
+  // Deliberately not the Texas Instruments wordmark: this is an unofficial recreation.
+  brand.innerHTML = '<span class="brand-name">Scientific Calculator</span><span class="brand-model">TI-92 Style</span>';
   const frame = el('div', 'lcd-frame');
   frame.append(lcd.el);
   screen.append(brand, frame);

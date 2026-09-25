@@ -44,6 +44,15 @@ body {
   font-family: 'Helvetica Neue', Arial, sans-serif;
 }
 
+.disclaimer {
+  margin: 20px 0 0;
+  max-width: 60ch;
+  text-align: center;
+  color: #9ba1a8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 #app {
   width: 100%;
   display: flex;
@@ -130,7 +139,7 @@ body {
   color: #e9e9e9;
 }
 
-.brand-ti {
+.brand-name {
   font-family: Georgia, 'Times New Roman', serif;
   font-variant: small-caps;
   font-size: 1.55cqw;
