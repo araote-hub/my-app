@@ -1,7 +1,8 @@
-import { evaluate, type AngleMode, type Value } from './engine/evaluate';
+import { evaluate, type AngleMode, type UserFunction, type Value } from './engine/evaluate';
 import { formatValue } from './engine/format';
 import { CalcError, parse } from './engine/parser';
 import type { Modifier } from './keys';
+import { ABOUT_TEXT, TOOLBAR, type MenuAction, type MenuItem } from './menus';
 
 // The TI-92 HOME screen: an entry line, a history of entry/result pairs, and
 // the key handling that edits and evaluates the entry. It has no DOM
@@ -23,8 +24,18 @@ export interface HomeState {
   angle: AngleMode;
   overwrite: boolean;
   caps: boolean;
-  /** Message for the error dialog; ESC or ENTER dismisses it. */
-  error: string | null;
+  /** Error or About dialog; ESC or ENTER dismisses it. */
+  dialog: { title: string; message: string } | null;
+  /** Open toolbar menu: index into TOOLBAR and the highlighted item. */
+  menu: { tab: number; index: number } | null;
+  /** 'prgmio' is the (empty) Program I/O screen that F5 shows. */
+  screen: 'home' | 'prgmio';
+  /**
+   * 2nd ✋ (LOCK) locks the hand in drag mode. On the TI-92 dragging only works in the
+   * Geometry app and on graphs, so on the HOME screen the lock changes nothing but
+   * the status-line indicator.
+   */
+  dragLock: boolean;
   off: boolean;
 }
 
@@ -71,6 +82,7 @@ const INSERTS: Record<string, { base?: string; second?: string }> = {
 const CONTINUES_ANSWER = /^[-+*/^→]/;
 
 const ENTER_KEYS = new Set(['enter', 'enter-top', 'enter-qwerty']);
+const DIGIT_KEYS = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
 
 export class Home {
   state: HomeState = {
@@ -80,11 +92,17 @@ export class Home {
     angle: 'rad',
     overwrite: false,
     caps: false,
-    error: null,
+    dialog: null,
+    menu: null,
+    screen: 'home',
+    dragLock: false,
     off: false,
   };
 
   private vars = new Map<string, Value>();
+  private funcs = new Map<string, UserFunction>();
+  /** Entry-line pieces held by F1 Cut / Copy. */
+  private clipboard: string[] = [];
   /** How far back ↑ / 2nd ENTRY has reached into the history; -1 when not browsing. */
   private recall = -1;
 
@@ -98,8 +116,16 @@ export class Home {
       s.off = true;
       return;
     }
-    if (s.error) {
-      if (ENTER_KEYS.has(id) || id === 'esc') s.error = null;
+    if (s.dialog) {
+      if (ENTER_KEYS.has(id) || id === 'esc') s.dialog = null;
+      return;
+    }
+
+    const tab = TOOLBAR.findIndex((t) => t.key === id);
+    if (tab >= 0 && modifier === null) return this.openTab(tab);
+    if (s.menu) return this.menuKey(id);
+    if (s.screen === 'prgmio') {
+      if (id === 'esc') s.screen = 'home';
       return;
     }
 
@@ -143,12 +169,89 @@ export class Home {
       case 'mode':
         s.angle = s.angle === 'rad' ? 'deg' : 'rad';
         return;
-      case 'f6':
-        // "Clear a-z": delete every single-letter variable.
-        for (const name of [...this.vars.keys()]) if (/^[a-z]$/.test(name)) this.vars.delete(name);
+      case 'hand':
+        // 2nd ✋ toggles the drag lock; ✋ on its own releases it.
+        s.dragLock = modifier === 'second' ? !s.dragLock : false;
         return;
     }
     // Remaining keys open menus or other apps (graphing, CATALOG, VAR-LINK, …), which this calculator doesn't have.
+  }
+
+  /** F1–F6: open that tab's menu (pressing it again closes it), or switch screens for F5. */
+  private openTab(tab: number) {
+    const s = this.state;
+    const { items, screen } = TOOLBAR[tab];
+    if (screen) {
+      s.menu = null;
+      s.screen = s.screen === screen ? 'home' : screen;
+      return;
+    }
+    s.screen = 'home';
+    s.menu = s.menu?.tab === tab || !items?.length ? null : { tab, index: 0 };
+  }
+
+  private menuKey(id: string) {
+    const s = this.state;
+    const menu = s.menu!;
+    const items = TOOLBAR[menu.tab].items!;
+    if (id === 'up' || id === 'down') {
+      menu.index = (menu.index + (id === 'up' ? -1 : 1) + items.length) % items.length;
+    } else if (id === 'left' || id === 'right') {
+      // Move to the neighbouring menu, skipping tabs that don't have one.
+      const step = id === 'left' ? -1 : 1;
+      let next = menu.tab;
+      do next = (next + step + TOOLBAR.length) % TOOLBAR.length;
+      while (!TOOLBAR[next].items);
+      s.menu = { tab: next, index: 0 };
+    } else if (ENTER_KEYS.has(id)) {
+      this.choose(items[menu.index]);
+    } else if (DIGIT_KEYS.has(id)) {
+      const item = items[Number(id) - 1];
+      if (item) this.choose(item);
+    } else if (id === 'esc') {
+      s.menu = null;
+    }
+    // Other keys are ignored while a menu is open, as on the TI-92.
+  }
+
+  private choose(item: MenuItem) {
+    this.state.menu = null;
+    if (item.insert) this.insert(item.insert);
+    if (item.action) this.run(item.action);
+  }
+
+  private run(action: MenuAction) {
+    const s = this.state;
+    switch (action) {
+      case 'cut':
+      case 'copy':
+        if (!s.entry.length) return;
+        this.clipboard = [...s.entry];
+        if (action === 'cut') this.setEntry([]);
+        return;
+      case 'paste':
+        for (const piece of this.clipboard) this.insert(piece);
+        return;
+      case 'clearHome':
+        s.history = [];
+        return;
+      case 'about':
+        s.dialog = { title: 'ABOUT', message: ABOUT_TEXT };
+        return;
+      case 'clearAZ':
+        this.clearSingleLetterVars();
+        return;
+      case 'newProb':
+        this.clearSingleLetterVars();
+        s.history = [];
+        this.setEntry([]);
+        return;
+    }
+  }
+
+  /** Clear a–z: delete every single-letter variable. */
+  private clearSingleLetterVars() {
+    for (const name of [...this.vars.keys()]) if (/^[a-zθ]$/.test(name)) this.vars.delete(name);
   }
 
   private letter(id: string, modifier: Modifier | null) {
@@ -201,11 +304,12 @@ export class Home {
       value = evaluate(parse(text), {
         angle: s.angle,
         vars: this.vars,
+        funcs: this.funcs,
         ans: (n) => s.history.at(-n)?.value,
       });
     } catch (e) {
       if (!(e instanceof CalcError)) throw e;
-      s.error = e.kind;
+      s.dialog = { title: 'ERROR', message: e.kind };
       s.entry = [...entry];
       s.cursor = e.pos === undefined ? entry.length : pieceAt(entry, e.pos);
       return;
