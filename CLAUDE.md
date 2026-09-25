@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A web-based scientific calculator whose interface reproduces the Texas Instruments **TI-92** (landscape body, large LCD, QWERTY keyboard, round cursor pad, numeric keypad). The user originally asked for a "TI-93". No such model could be found, so they chose the TI-92 as the reference. Use a TI-92 photo when checking layout (for example, the image on the Wikipedia "TI-92 series" page).
 
+The site is public, so the page must not present itself as a Texas Instruments product. The case shows "Scientific Calculator / TI-92 Style" instead of the TI wordmark, and `index.html` carries an "unofficial, not affiliated" disclaimer. Keep both if you change the branding.
+
 It is a numeric (non-CAS) calculator working on the HOME screen. Graphing, menus (F1–F5, MATH, CATALOG, VAR-LINK, CHAR…) and other apps are not implemented, and those keys do nothing.
 
 ## Commands
@@ -21,7 +23,7 @@ To check the layout visually, take screenshots with headless Chrome against `npm
 
 ## Architecture
 
-Vite + TypeScript with no framework. All UI is built as DOM in code, and `index.html` only contains `#app`.
+Vite + TypeScript with no framework, deployed as a static site (no backend). All UI is built as DOM in code; `index.html` holds only `#app` and the disclaimer. `vite.config.ts` sets `base: './'` so the build works at a domain root and under a sub-path such as GitHub Pages' `/my-app/`. Static files such as `favicon.svg` live in `public/`, and pages must reference them with relative paths (no leading `/`).
 
 - `src/keys.ts` is the **single source of truth for the keyboard**. Each key is a `KeyDef` with its label, its 2nd legend (yellow) and ◆ legend (green), the area it belongs to (`fkeys` | `control` | `qwerty`), its CSS grid position, its style, an optional `modifier`, and its physical-keyboard mappings (`kbd`). The cursor pad is described separately as `CURSOR_PAD`. To add, move or relabel a key, edit this file and nothing else.
   - The `qwerty` area uses 20 half-key columns, so alternate rows can be staggered by half a key (every letter key has `colSpan: 2`).
