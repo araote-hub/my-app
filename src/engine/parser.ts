@@ -1,7 +1,8 @@
 // Turns an entry-line string into an AST. Syntax follows the TI-92 HOME screen:
 // implicit multiplication ("2x", "3(4)"), "⁻" for negation, "ᴇ" for EE,
 // "→" to store, "|" for "with" (expr|x=3), and unclosed parentheses are
-// closed automatically at the end of the entry.
+// closed automatically at the end of the entry. An entry can also be one of
+// the commands "Define f(x)=expr" / "Define a=expr" or "DelVar a,b".
 
 export type CompareOp = '=' | '≠' | '<' | '>' | '≤' | '≥';
 export type BinaryOp = '+' | '-' | '*' | '/' | '^';
@@ -15,7 +16,11 @@ export type Node =
   | { type: 'cmp'; op: CompareOp; left: Node; right: Node }
   | { type: 'call'; name: string; args: Node[] }
   | { type: 'with'; expr: Node; bindings: [name: string, value: Node][] }
-  | { type: 'store'; expr: Node; name: string };
+  | { type: 'store'; expr: Node; name: string }
+  /** name(args) where name isn't built in: a user function call, or implicit multiplication (x(2) = x*2). */
+  | { type: 'apply'; name: string; args: Node[] }
+  | { type: 'define'; name: string; params: string[] | null; body: Node }
+  | { type: 'delvar'; names: string[] };
 
 /** An error shown in the LCD's error dialog. `kind` is the TI-style message. */
 export class CalcError extends Error {
@@ -28,16 +33,26 @@ export class CalcError extends Error {
   }
 }
 
-/** Functions callable as name(...). Names are matched case-insensitively. */
+/** Built-in functions callable as name(...), by canonical name (see `canonicalName`). */
 export const FUNCTIONS = new Set([
   'sin', 'cos', 'tan', 'sin⁻¹', 'cos⁻¹', 'tan⁻¹',
   'sinh', 'cosh', 'tanh', 'sinh⁻¹', 'cosh⁻¹', 'tanh⁻¹',
   'ln', 'log', '√', 'abs', 'floor', 'ceiling', 'round', 'ipart', 'fpart',
-  'mod', 'gcd', 'lcm', 'ncr', 'npr', 'min', 'max', 'sign',
-  'ans', '∫', 'σ', 'd', // 'σ' is how 'Σ' comes out of toLowerCase()
+  'mod', 'gcd', 'lcm', 'ncr', 'npr', 'min', 'max', 'sign', 'ans', 'approx',
+  '∫', 'Σ', 'Π', 'd', 'nderiv', 'nint', 'fmin', 'fmax', 'solve', 'zeros',
 ]);
 
 const CONSTANTS = new Set(['π', 'ℯ', '∞']);
+const SYMBOL_IDS = new Set([...CONSTANTS, '√', '∫', 'Σ', 'Π']);
+const KEYWORDS = new Set(['define', 'delvar', 'and']);
+
+/**
+ * Names are case-insensitive, so letter names are lower-cased. Symbol names are
+ * kept as-is, because lower-casing would turn Π (product) into π (the constant).
+ */
+export function canonicalName(name: string) {
+  return SYMBOL_IDS.has(name) ? name : name.toLowerCase();
+}
 const COMPARE_OPS = new Set<string>(['=', '≠', '<', '>', '≤', '≥']);
 const SINGLE_OPS = new Set([...'+-*/^⁻(),→|=≠<>≤≥']);
 
@@ -75,7 +90,7 @@ function tokenize(text: string): Token[] {
         i += 2;
       }
       tokens.push({ kind: 'id', name, pos });
-    } else if (CONSTANTS.has(ch) || ch === '√' || ch === '∫' || ch === 'Σ') {
+    } else if (SYMBOL_IDS.has(ch)) {
       tokens.push({ kind: 'id', name: ch, pos });
       i++;
     } else if (ch === 'ⅈ') {
@@ -103,7 +118,32 @@ export function parse(text: string): Node {
   function fail(): never {
     throw new CalcError('Syntax', peek().pos);
   }
-  const isFunction = (tok: Token) => tok.kind === 'id' && FUNCTIONS.has(tok.name.toLowerCase());
+  const isFunction = (tok: Token) => tok.kind === 'id' && FUNCTIONS.has(canonicalName(tok.name));
+  const isKeyword = (tok: Token, word: string) => tok.kind === 'id' && tok.name.toLowerCase() === word;
+
+  /** An identifier usable as a variable or user-function name. */
+  function nameToken(error = 'Invalid variable name'): string {
+    const tok = peek();
+    if (tok.kind !== 'id' || CONSTANTS.has(tok.name) || isFunction(tok) || KEYWORDS.has(tok.name.toLowerCase())) {
+      throw new CalcError(error, tok.pos);
+    }
+    t++;
+    return canonicalName(tok.name);
+  }
+
+  /** Comma-separated arguments after an opening paren that has already been consumed. */
+  function args(): Node[] {
+    const list: Node[] = [];
+    if (!isOp(')') && peek().kind !== 'eof') {
+      list.push(comparison());
+      while (isOp(',')) {
+        t++;
+        list.push(comparison());
+      }
+    }
+    closeParen();
+    return list;
+  }
 
   /** Closing paren, or nothing at the end of the entry (TI-style auto-close). */
   function closeParen() {
@@ -112,18 +152,48 @@ export function parse(text: string): Node {
   }
 
   function statement(): Node {
-    let node = withExpr();
-    if (isOp('→')) {
+    let node: Node;
+    if (isKeyword(peek(), 'define')) {
       t++;
-      const target = peek();
-      if (target.kind !== 'id' || CONSTANTS.has(target.name) || isFunction(target)) {
-        throw new CalcError('Invalid variable name', target.pos);
+      node = define();
+    } else if (isKeyword(peek(), 'delvar')) {
+      t++;
+      const names = [nameToken()];
+      while (isOp(',')) {
+        t++;
+        names.push(nameToken());
       }
-      t++;
-      node = { type: 'store', expr: node, name: target.name.toLowerCase() };
+      node = { type: 'delvar', names };
+    } else {
+      node = withExpr();
+      if (isOp('→')) {
+        t++;
+        node = { type: 'store', expr: node, name: nameToken() };
+      }
     }
     if (peek().kind !== 'eof') fail();
     return node;
+  }
+
+  function define(): Node {
+    const name = nameToken();
+    let params: string[] | null = null;
+    if (isOp('(')) {
+      t++;
+      params = [];
+      if (!isOp(')')) {
+        params.push(nameToken('Invalid parameter'));
+        while (isOp(',')) {
+          t++;
+          params.push(nameToken('Invalid parameter'));
+        }
+      }
+      if (!isOp(')')) fail();
+      t++;
+    }
+    if (!isOp('=')) fail();
+    t++;
+    return { type: 'define', name, params, body: comparison() };
   }
 
   function withExpr(): Node {
@@ -132,14 +202,11 @@ export function parse(text: string): Node {
     t++;
     const bindings: [string, Node][] = [];
     for (;;) {
-      const name = peek();
-      if (name.kind !== 'id' || CONSTANTS.has(name.name) || isFunction(name)) fail();
-      t++;
+      const name = nameToken();
       if (!isOp('=')) fail();
       t++;
-      bindings.push([name.name.toLowerCase(), sum()]);
-      const next = peek();
-      if (next.kind === 'id' && next.name.toLowerCase() === 'and') t++;
+      bindings.push([name, sum()]);
+      if (isKeyword(peek(), 'and')) t++;
       else break;
     }
     return { type: 'with', expr, bindings };
@@ -210,21 +277,18 @@ export function parse(text: string): Node {
     if (tok.kind === 'id') {
       t++;
       if (CONSTANTS.has(tok.name)) return { type: 'const', name: tok.name as 'π' | 'ℯ' | '∞' };
+      const name = canonicalName(tok.name);
       if (isFunction(tok)) {
         if (!isOp('(')) throw new CalcError('Syntax', tok.pos);
         t++;
-        const args: Node[] = [];
-        if (!isOp(')') && peek().kind !== 'eof') {
-          args.push(comparison());
-          while (isOp(',')) {
-            t++;
-            args.push(comparison());
-          }
-        }
-        closeParen();
-        return { type: 'call', name: tok.name.toLowerCase(), args };
+        return { type: 'call', name, args: args() };
       }
-      return { type: 'var', name: tok.name.toLowerCase() };
+      if (KEYWORDS.has(name)) throw new CalcError('Syntax', tok.pos);
+      if (isOp('(')) {
+        t++;
+        return { type: 'apply', name, args: args() };
+      }
+      return { type: 'var', name };
     }
     return fail();
   }

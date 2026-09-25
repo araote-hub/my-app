@@ -201,7 +201,7 @@ body {
   font-size: 0.95cqw;
 }
 
-.lcd-tab--active {
+.lcd-tab--open {
   background: var(--lcd-ink);
   color: var(--lcd-bg-hi);
 }
@@ -269,7 +269,7 @@ body {
   color: var(--lcd-bg-hi);
 }
 
-.lcd-error {
+.lcd-dialog {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -283,19 +283,48 @@ body {
   line-height: 1.2;
 }
 
-.lcd-error[hidden] {
+.lcd-dialog[hidden],
+.lcd-menu[hidden] {
   display: none;
 }
 
-.lcd-error-title {
+.lcd-dialog-title {
   margin: -0.5cqw -1cqw 0.4cqw;
   background: var(--lcd-ink);
   color: var(--lcd-bg-hi);
 }
 
-.lcd-error-hint {
+.lcd-dialog-hint {
   margin-top: 0.4cqw;
   font-size: 1.35cqw;
+}
+
+/* Drop-down menu under an open toolbar tab. */
+.lcd-menu {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  padding: 0.2cqw;
+  list-style: none;
+  border: 0.15cqw solid var(--lcd-ink);
+  background: var(--lcd-bg-hi);
+  box-shadow: 0.3cqw 0.3cqw 0 var(--lcd-ink);
+  line-height: 1.15;
+}
+
+.lcd-menu li {
+  padding: 0 0.4cqw;
+}
+
+.lcd-menu-item--selected {
+  background: var(--lcd-ink);
+  color: var(--lcd-bg-hi);
+}
+
+/* Program I/O screen (F5): blank, since there are no programs to show output. */
+.lcd--prgmio .lcd-history,
+.lcd--prgmio .lcd-entry {
+  visibility: hidden;
 }
 
 /* Powered off (2nd ON): a blank, slightly darker panel. */
@@ -318,6 +347,21 @@ body {
   justify-content: space-between;
   padding: 0.25cqw 0.3cqw 0;
   font-size: 1.35cqw;
+}
+
+.lcd-lock:not(:empty) {
+  margin-right: 0.6cqw;
+}
+
+/* ✋ tends to render as a colour emoji; this repaints the glyph in a flat colour. */
+.lcd-lock,
+.key[data-id='hand'] {
+  color: transparent;
+  text-shadow: 0 0 0 var(--glyph-color, var(--lcd-ink));
+}
+
+.key[data-id='hand'] {
+  --glyph-color: #e4eaff;
 }
 
 .lcd-mod:not(:empty) {

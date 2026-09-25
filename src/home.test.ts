@@ -65,8 +65,8 @@ describe('Home', () => {
     const home = new Home();
     press(home, '4', 'sto', 'x', 'enter', 'x', 'power', '2', 'enter');
     expect(results(home)).toEqual(['4', '16']);
-    press(home, 'f6', 'x', 'enter');
-    expect(home.state.error).toBe('Undefined variable');
+    press(home, 'f6', '1', 'x', 'enter'); // F6 1: Clear a–z
+    expect(home.state.dialog?.message).toBe('Undefined variable');
   });
 
   it('uppercases letters with shift or caps lock', () => {
@@ -78,12 +78,12 @@ describe('Home', () => {
   it('shows an error until ESC or ENTER, keeping the entry and pointing at the problem', () => {
     const home = new Home();
     press(home, '1', 'plus', 'rparen', '2', 'enter');
-    expect(home.state.error).toBe('Syntax');
+    expect(home.state.dialog?.message).toBe('Syntax');
     expect(home.state.cursor).toBe(2);
     press(home, '7');
     expect(entry(home)).toBe('1+)2');
     press(home, 'esc');
-    expect(home.state.error).toBeNull();
+    expect(home.state.dialog).toBeNull();
     expect(entry(home)).toBe('1+)2');
   });
 
@@ -138,5 +138,126 @@ describe('Home', () => {
     const home = new Home();
     for (let i = 0; i < 35; i++) press(home, '1', 'enter');
     expect(home.state.history).toHaveLength(30);
+  });
+});
+
+describe('toolbar menus', () => {
+  it('opens a menu with its F-key and inserts the chosen item with ENTER', () => {
+    const home = new Home();
+    press(home, 'f2');
+    expect(home.state.menu).toEqual({ tab: 1, index: 0 });
+    press(home, 'down', 'enter');
+    expect(home.state.menu).toBeNull();
+    expect(entry(home)).toBe('zeros(');
+  });
+
+  it('selects items by number', () => {
+    const home = new Home();
+    press(home, 'f3', '4');
+    expect(entry(home)).toBe('Π(');
+  });
+
+  it('wraps up and down, and moves between menus with left and right, skipping F5', () => {
+    const home = new Home();
+    press(home, 'f4', 'up');
+    expect(home.state.menu).toEqual({ tab: 3, index: 1 });
+    press(home, 'right');
+    expect(home.state.menu).toEqual({ tab: 5, index: 0 });
+    press(home, 'right');
+    expect(home.state.menu).toEqual({ tab: 0, index: 0 });
+    press(home, 'left');
+    expect(home.state.menu?.tab).toBe(5);
+  });
+
+  it('closes with ESC or the same F-key, and ignores other keys while open', () => {
+    const home = new Home();
+    press(home, 'f1', 'esc');
+    expect(home.state.menu).toBeNull();
+    press(home, 'f1', 'x', 'plus');
+    expect(entry(home)).toBe('');
+    press(home, 'f1');
+    expect(home.state.menu).toBeNull();
+  });
+
+  it('does nothing for F7 and F8, as on the TI-92 HOME screen', () => {
+    const home = new Home();
+    press(home, 'f7', 'f8');
+    expect(home.state.menu).toBeNull();
+    expect(home.state.screen).toBe('home');
+  });
+
+  it('solves an equation typed through the menus', () => {
+    const home = new Home();
+    press(home, 'f2', '1', 'x', 'power', '2', 'equals', '9', 'comma', 'x', 'rparen', 'enter');
+    expect(results(home)).toEqual(['x=⁻3 or x=3']);
+  });
+
+  it('defines a function with F4 Define and calls it', () => {
+    const home = new Home();
+    press(home, 'f4', '1', 'f', 'lparen', 'x', 'rparen', 'equals', '2', 'x', 'enter');
+    press(home, 'f', 'lparen', '2', '1', 'rparen', 'enter');
+    expect(results(home)).toEqual(['Done', '42']);
+  });
+
+  it('cuts, copies and pastes the entry line with F1', () => {
+    const home = new Home();
+    press(home, '1', 'plus', '2', 'f1', '2'); // Copy
+    expect(entry(home)).toBe('1+2');
+    press(home, 'f1', '1'); // Cut
+    expect(entry(home)).toBe('');
+    press(home, 'f1', '3', 'times', 'f1', '3'); // Paste twice around "*"
+    expect(entry(home)).toBe('1+2*1+2');
+  });
+
+  it('clears the history with F1 Clear Home and shows About', () => {
+    const home = new Home();
+    press(home, '1', 'enter', 'f1', '4');
+    expect(results(home)).toEqual([]);
+    press(home, 'f1', '5');
+    expect(home.state.dialog?.title).toBe('ABOUT');
+    press(home, 'enter');
+    expect(home.state.dialog).toBeNull();
+  });
+
+  it('starts over with F6 NewProb', () => {
+    const home = new Home();
+    press(home, '5', 'sto', 'a', 'enter', '7', 'f6', '2');
+    expect(results(home)).toEqual([]);
+    expect(entry(home)).toBe('');
+    press(home, 'a', 'enter');
+    expect(home.state.dialog?.message).toBe('Undefined variable');
+  });
+
+  it('shows the Program I/O screen with F5 until ESC or F5', () => {
+    const home = new Home();
+    press(home, 'f5');
+    expect(home.state.screen).toBe('prgmio');
+    press(home, '1');
+    expect(entry(home)).toBe('');
+    press(home, 'esc');
+    expect(home.state.screen).toBe('home');
+    press(home, 'f5', 'f5');
+    expect(home.state.screen).toBe('home');
+    press(home, 'f5', 'f2');
+    expect(home.state.screen).toBe('home');
+    expect(home.state.menu?.tab).toBe(1);
+  });
+});
+
+describe('hand key and LOCK', () => {
+  it('toggles the drag lock with 2nd ✋ and releases it with ✋', () => {
+    const home = new Home();
+    press(home, '2nd:hand');
+    expect(home.state.dragLock).toBe(true);
+    press(home, '2nd:hand');
+    expect(home.state.dragLock).toBe(false);
+    press(home, '2nd:hand', 'hand');
+    expect(home.state.dragLock).toBe(false);
+  });
+
+  it('changes nothing else on the HOME screen, as on the TI-92', () => {
+    const home = new Home();
+    press(home, '1', '2', '2nd:hand', 'left', '9', 'hand', 'enter');
+    expect(results(home)).toEqual(['192']);
   });
 });

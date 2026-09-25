@@ -1,18 +1,11 @@
 import type { HomeState } from './home';
 import { HISTORY_LIMIT } from './home';
 import type { Modifier } from './keys';
+import { TOOLBAR } from './menus';
 
-// Draws the TI-92 HOME screen: toolbar, history, entry line, status line,
-// plus the error dialog and the powered-off state.
-
-const TABS: [fkey: string, name: string][] = [
-  ['F1▾', '✎'],
-  ['F2▾', 'Algebra'],
-  ['F3▾', 'Calc'],
-  ['F4▾', 'Other'],
-  ['F5', 'PrgmIO'],
-  ['F6▾', 'Clear a-z'],
-];
+// Draws the TI-92 HOME screen: toolbar and its drop-down menus, history,
+// entry line, status line, plus dialogs, the Program I/O screen and the
+// powered-off state.
 
 const MODIFIER_LABEL: Record<Modifier, string> = {
   second: '2ND',
@@ -31,29 +24,34 @@ export function createLcd(): Lcd {
   el.className = 'lcd';
   el.innerHTML = `
     <div class="lcd-toolbar">
-      ${TABS.map(([fkey, name], i) => `<div class="lcd-tab${i === 0 ? ' lcd-tab--active' : ''}"><small>${fkey}</small>${name}</div>`).join('')}
+      ${TOOLBAR.map((t) => `<div class="lcd-tab"><small>${t.caption}</small>${t.name}</div>`).join('')}
     </div>
     <div class="lcd-history"></div>
     <div class="lcd-entry"></div>
     <div class="lcd-status">
-      <span><span class="lcd-mod"></span>MAIN</span>
+      <span><span class="lcd-mod"></span><span class="lcd-lock" title="Drag lock (2nd ✋)"></span>MAIN</span>
       <span class="lcd-mode"></span>
       <span class="lcd-count"></span>
     </div>
-    <div class="lcd-error" hidden>
-      <div class="lcd-error-title">ERROR</div>
-      <div class="lcd-error-message"></div>
-      <div class="lcd-error-hint">ENTER or ESC=OK</div>
+    <ol class="lcd-menu" hidden></ol>
+    <div class="lcd-dialog" hidden>
+      <div class="lcd-dialog-title"></div>
+      <div class="lcd-dialog-message"></div>
+      <div class="lcd-dialog-hint">ENTER or ESC=OK</div>
     </div>`;
 
   const q = (sel: string) => el.querySelector<HTMLElement>(sel)!;
   const mod = q('.lcd-mod');
+  const lock = q('.lcd-lock');
   const history = q('.lcd-history');
   const entry = q('.lcd-entry');
   const mode = q('.lcd-mode');
   const count = q('.lcd-count');
-  const errorBox = q('.lcd-error');
-  const errorMessage = q('.lcd-error-message');
+  const tabs = [...el.querySelectorAll<HTMLElement>('.lcd-tab')];
+  const menu = q('.lcd-menu');
+  const dialog = q('.lcd-dialog');
+  const dialogTitle = q('.lcd-dialog-title');
+  const dialogMessage = q('.lcd-dialog-message');
 
   return {
     el,
@@ -62,6 +60,26 @@ export function createLcd(): Lcd {
     },
     render(state) {
       el.classList.toggle('lcd--off', state.off);
+      el.classList.toggle('lcd--prgmio', state.screen === 'prgmio');
+      tabs.forEach((tab, i) => {
+        const open = state.menu?.tab === i || (state.screen !== 'home' && TOOLBAR[i].screen === state.screen);
+        tab.classList.toggle('lcd-tab--open', open);
+      });
+
+      menu.hidden = !state.menu;
+      if (state.menu) {
+        const { tab, index } = state.menu;
+        menu.replaceChildren(
+          ...TOOLBAR[tab].items!.map((item, i) => {
+            const li = document.createElement('li');
+            li.textContent = `${i + 1}:${item.label}`;
+            li.classList.toggle('lcd-menu-item--selected', i === index);
+            return li;
+          }),
+        );
+        menu.style.left = `${tabs[tab].offsetLeft}px`;
+        menu.style.top = `${tabs[tab].offsetTop + tabs[tab].offsetHeight}px`;
+      }
 
       history.replaceChildren(
         ...state.history.map((item) => {
@@ -90,11 +108,13 @@ export function createLcd(): Lcd {
       // Keep the cursor in view on long entries.
       entry.scrollLeft = Math.max(0, cursor.offsetLeft - entry.clientWidth + 2 * cursor.offsetWidth + 4);
 
+      lock.textContent = state.dragLock ? '✋︎' : '';
       mode.textContent = `${state.angle.toUpperCase()} APPROX${state.caps ? ' CAPS' : ''}`;
       count.textContent = `FUNC ${state.history.length}/${HISTORY_LIMIT}`;
 
-      errorBox.hidden = !state.error;
-      errorMessage.textContent = state.error ?? '';
+      dialog.hidden = !state.dialog;
+      dialogTitle.textContent = state.dialog?.title ?? '';
+      dialogMessage.textContent = state.dialog?.message ?? '';
     },
   };
 }
